@@ -12,7 +12,6 @@ tank1Color = 'b'
 tank2Color = 'r'
 obstacleColor = 'k'
 
-##### functions you need to implement #####
 def trajectory (x0,y0,v,theta,g = 9.8, npts = 1000):
     """
     finds the x-y trajectory of a projectile
@@ -44,7 +43,13 @@ def trajectory (x0,y0,v,theta,g = 9.8, npts = 1000):
     0.5g t^2 - vsin(theta) t - y0 = 0
     t_final = v/g sin(theta) + sqrt((v/g)^2 sin^2(theta) + 2 y0/g)
     """
-  
+    vy = v * np.sin(np.deg2rad(theta))
+    vx = v * np.cos(np.deg2rad(theta))
+    tfinal = vy/g + np.sqrt((vy/g)**2 + 2*y0/g)
+    t = np.linspace(0,tfinal,npts)
+    x = x0 + vx * t
+    y = y0 + vy * t - 0.5 * g * t**2
+    return (x,y)
 
 def firstInBox (x,y,box):
     """
@@ -65,8 +70,41 @@ def firstInBox (x,y,box):
         y[j] is in [bottom,top]
         -1 if the line x,y does not go through the box
     """
+    for i in range(0,len(x)):
+        if (box[0] <= x[i] <= box[1] and box[2] <= y[i] <= box[3]):
+            return i
+    return -1
+ 
 
 
+def drawBox(box, color):
+    x = (box[0], box[0], box[1], box[1])
+    y = (box[2], box[3], box[3], box[2])
+    ax = plt.gca()
+    ax.fill(x,y, c = color)
+
+def endTrajectoryAtIntersection (x,y,box):
+    """
+    portion of trajectory prior to first intersection with box
+    
+    paramaters
+    ----------
+    x,y : np array type
+        position to check
+    box : tuple
+        (left,right,bottom,top)
+    
+    returns
+    ----------
+    (x,y) : tuple of np.array of floats
+        equal to inputs if (x,y) does not intersect box
+        otherwise returns the initial portion of the trajectory
+        up until the point of intersection with the box
+    """
+    i = firstInBox(x,y,box)
+    if (i < 0):
+        return (x,y)
+    return (x[0:i],y[0:i])
     
 
 def tankShot (targetBox, obstacleBox, x0, y0, v, theta, g = 9.8):
@@ -97,7 +135,15 @@ def tankShot (targetBox, obstacleBox, x0, y0, v, theta, g = 9.8):
     draws the truncated trajectory in current plot window
     """
     
-
+    x,y = trajectory(x0,y0,v,theta,g, npts=10000)
+    x,y = endTrajectoryAtIntersection(x,y,obstacleBox)
+    plt.plot(x,y,'k-', lineWidth=2)
+    return(firstInBox(x,y,targetBox) >=0)
+    
+def showWindow():
+    plt.draw()
+    plt.pause(0.001)
+    plt.show()
 
 def drawBoard (tank1box, tank2box, obstacleBox, playerNum):
     """
@@ -114,9 +160,14 @@ def drawBoard (tank1box, tank2box, obstacleBox, playerNum):
         1 or 2 -- who's turn it is to shoot
  
     """    
-    #your code here
-    
-    showWindow() #this makes the figure window show up
+    plt.clf()
+    drawBox(tank1box, 'b')
+    drawBox(tank2box, 'r')
+    drawBox(obstacleBox, 'k')
+    plt.title ('Player ' + str(playerNum) + ' turn')
+    plt.xlim(0,100)
+    plt.ylim(0,100)
+    showWindow()
 
 def oneTurn (tank1box, tank2box, obstacleBox, playerNum, g = 9.8):   
     """
@@ -144,7 +195,24 @@ def oneTurn (tank1box, tank2box, obstacleBox, playerNum, g = 9.8):
     returns 0 for miss, 1 or 2 for victory
     """        
 
-    
+    drawBoard(tank1box, tank2box, obstacleBox, playerNum)
+    v = getNumberInput('Player ' + str(playerNum) + ' enter velocity >')
+    theta = getNumberInput('Player ' + str(playerNum) + ' enter angle (deg) >')
+    if (playerNum == 1):
+        target = tank2box
+        origin = tank1box
+    else:
+        target = tank1box
+        origin = tank2box
+    x0 = 0.5*(origin[0] + origin[1])
+    y0 = 0.5*(origin[2] + origin[3])
+    hit = tankShot(target, obstacleBox, x0,y0,v,theta,g)
+    showWindow()
+
+    if (hit):
+        return playerNum
+    else:
+        return 0
 
 def playGame(tank1box, tank2box, obstacleBox, g = 9.8):
     """
@@ -161,10 +229,19 @@ def playGame(tank1box, tank2box, obstacleBox, g = 9.8):
      g : float 
         accel due to gravity (default 9.8)
     """
-    
+    playerNum = 1
+    while True:
+        winner = oneTurn(tank1box, tank2box, obstacleBox, playerNum, g)
+        if (winner):
+            break
+        input ("hit enter to continue >")
+        if playerNum == 1:
+            playerNum = 2
+        else:
+            playerNum = 1
+    print ("Congratulations player", winner, "!")
     
         
-##### functions provided to you #####
 def getNumberInput (prompt, validRange = [-np.Inf, np.Inf]):
     """displays prompt and converts user input to a number
     
@@ -195,55 +272,6 @@ def getNumberInput (prompt, validRange = [-np.Inf, np.Inf]):
             
     return num    
 
-def showWindow():
-    """
-    shows the window -- call at end of drawBoard and tankShot
-    """
-    plt.draw()
-    plt.pause(0.001)
-    plt.show()
-
-
-def drawBox(box, color):
-    """
-    draws a filled box in the current axis
-    parameters
-    ----------
-    box : tuple
-        (left,right,bottom,top) - extents of the box
-    color : str
-        color to fill the box with, e.g. 'b'
-    """    
-    x = (box[0], box[0], box[1], box[1])
-    y = (box[2], box[3], box[3], box[2])
-    ax = plt.gca()
-    ax.fill(x,y, c = color)
-
-def endTrajectoryAtIntersection (x,y,box):
-    """
-    portion of trajectory prior to first intersection with box
-    
-    paramaters
-    ----------
-    x,y : np array type
-        position to check
-    box : tuple
-        (left,right,bottom,top)
-    
-    returns
-    ----------
-    (x,y) : tuple of np.array of floats
-        equal to inputs if (x,y) does not intersect box
-        otherwise returns the initial portion of the trajectory
-        up until the point of intersection with the box
-    """
-    i = firstInBox(x,y,box)
-    if (i < 0):
-        return (x,y)
-    return (x[0:i],y[0:i])
-
-
-##### fmain -- edit box locations for new games #####
 def main():
     tank1box = [10,15,0,5]
     tank2box = [90,95,0,5]
@@ -254,5 +282,3 @@ def main():
 #don't edit the lines below;
 if __name__== "__main__":
     main()  
-        
-    
